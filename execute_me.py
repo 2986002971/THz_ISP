@@ -44,7 +44,7 @@ class ImageCorrector:
         return points[points[:, 0].argsort()]  # 确保点按x坐标排序
 
     def calculate_local_slopes(self, points, window_size=50):
-        """计算曲线的局部斜率"""
+        """计算曲线的局部斜率，并只保留有效区域"""
         slopes = []
         x_coords = []
 
@@ -57,8 +57,14 @@ class ImageCorrector:
             A = np.vstack([x, np.ones(len(x))]).T
             slope, _ = np.linalg.lstsq(A, y, rcond=None)[0]
 
-            slopes.append(slope)
-            x_coords.append(np.mean(x))
+            # 只有当斜率的绝对值大于阈值时才保留
+            if abs(slope) > 0.01:  # 阈值，可调
+                slopes.append(slope)
+                x_coords.append(np.mean(x))
+
+        # 确保至少有一些有效点
+        if len(slopes) < 2:
+            raise ValueError("未检测到足够的有效斜率区域")
 
         return np.array(x_coords), np.array(slopes)
 
@@ -92,24 +98,39 @@ class ImageCorrector:
         grid_x, grid_y = np.meshgrid(np.arange(width), np.arange(height))
         map_x = grid_x.astype(np.float32)
 
-        # 对每一行进行插值映射
-        for y in range(height):
-            map_x[y] = np.interp(
-                np.arange(width), key_points_original, key_points_target
-            )
+        # 只需计算一次插值映射，然后广播到所有行
+        map_x[:] = np.interp(
+            np.arange(width),  # 原始x坐标点
+            key_points_original,  # 已知的原始关键点x坐标
+            key_points_target,  # 对应的目标关键点x坐标
+        )
 
         self.correction_map = (map_x, grid_y.astype(np.float32))
         return x_slopes, slopes  # 返回用于可视化的数据
 
     def correct_image(self, image):
-        """使用映射表校正图像"""
-        return cv2.remap(
+        """使用映射表校正图像并裁剪无效区域"""
+        # 使用映射表进行校正
+        corrected = cv2.remap(
             image,
             self.correction_map[0],
             self.correction_map[1],
             interpolation=cv2.INTER_LINEAR,
             borderMode=cv2.BORDER_REFLECT,
         )
+
+        # 获取有效区域的范围
+        valid_start = int(self.correction_map[0].min())
+        valid_end = int(self.correction_map[0].max())
+
+        # 裁剪图像
+        cropped = corrected[:, valid_start:valid_end]
+
+        # 调整大小到原始宽度
+        if cropped.shape[1] != image.shape[1]:
+            cropped = cv2.resize(cropped, (image.shape[1], image.shape[0]))
+
+        return cropped
 
     def process_image(self, image):
         """完整的图像处理流程"""
