@@ -1,0 +1,16 @@
+[project]
+authors = ["Horned_Axe <horned_axe@proton.me>"]
+channels = ["conda-forge"]
+description = "Add a short description here"
+name = "ISP"
+platforms = ["win-64"]
+version = "0.1.0"
+
+[tasks]
+
+[dependencies]
+python = "3.12"
+opencv = "*"
+scipy = "*"
+numpy = "*"
+matplotlib = "*"

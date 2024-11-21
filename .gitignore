@@ -1,0 +1,10 @@
+
+# pixi environments
+.pixi
+*.egg-info
+
+*.png
+*.jpg
+*.jpeg
+
+*.pyc
